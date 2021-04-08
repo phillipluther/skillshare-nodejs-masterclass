@@ -1,5 +1,6 @@
 const http = require('http');
 const StringDecoder = require('string_decoder').StringDecoder;
+const config = require('./config');
 
 const server = http.createServer((req, res) => {
   const baseUrl = `http://${req.headers.host}/`; // can always smarten this up later
@@ -19,21 +20,60 @@ const server = http.createServer((req, res) => {
 
   // response handling
   req.on('end', () => {
-    buffer += decoder.end();
+    const handler = (typeof router[pathname] !== 'undefined')
+      ? router[pathname]
+      : handlers.notFound;
 
-    res.end('OK\n');
+    const reqData = {
+      pathname,
+      method,
+      queryParams,
+      headers,
+      payload: buffer + decoder.end(),
+    };
 
-    // debugging/details
-    const groupName = `[${method}] Request received on ${pathname}`;
-    console.group(groupName);
-      console.log('Params:', queryParams);
-      console.log('Headers:', headers);
-      console.log('Payload:', buffer);
+    handler(reqData, (statusCode = 200, payload = {}) => {
+      const payloadString = JSON.stringify(payload);
+
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(statusCode);
+      res.end(payloadString);
+
+      // debugging/details
+      const groupName = `[${method} /${pathname}]`;
+
+      console.group(groupName);
+        console.group('Request');
+          console.log('Params:', queryParams);
+          console.log('Headers:', headers);
+          console.log('Payload:', buffer);
+        console.groupEnd('Request');
+
+        console.group('Response');
+          console.log('Status:', statusCode);
+          console.log('Payload:', payloadString || 'none');
+        console.groupEnd('Response');
+      console.groupEnd(groupName);
       console.log('\n');
-    console.groupEnd(groupName);
+    });
   });
 });
 
-server.listen(3000, () => {
-  console.log('Server is listening on port 3000');
+server.listen(config.port, () => {
+  console.log(`Server is listening on port ${config.port} in ${config.env} mode`);
 });
+
+// route handles
+const handlers = {
+  sample: (data, callback) => {
+    callback(406, { name: 'sample handler' });
+  },
+  notFound: (data, callback) => {
+    callback(404);
+  },
+};
+
+// eventually break this out. probably.
+const router = {
+  'sample': handlers.sample
+}
