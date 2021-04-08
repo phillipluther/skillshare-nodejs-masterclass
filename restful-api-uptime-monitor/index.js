@@ -1,9 +1,13 @@
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const StringDecoder = require('string_decoder').StringDecoder;
 const config = require('./config');
 
-const server = http.createServer((req, res) => {
-  const baseUrl = `http://${req.headers.host}/`; // can always smarten this up later
+// unified server, handling both http and https requests
+const requestHandler = (req, res) => {
+  const protocol = req.connection.encrypted ? 'https' : 'http';
+  const baseUrl = `${protocol}://${req.headers.host}/`; // can always smarten this up later
   const parsedUrl = new URL(req.url, baseUrl);
 
   // request basics
@@ -57,10 +61,20 @@ const server = http.createServer((req, res) => {
       console.log('\n');
     });
   });
+};
+
+const httpServer = http.createServer(requestHandler);
+const httpsServer = https.createServer({
+  key: fs.readFileSync('./https/key.pem'),
+  cert: fs.readFileSync('./https/cert.pem'),
+}, requestHandler);
+
+httpServer.listen(config.httpPort, () => {
+  console.log(`[HTTP] Server is listening on port ${config.httpPort} in ${config.env} mode`);
 });
 
-server.listen(config.port, () => {
-  console.log(`Server is listening on port ${config.port} in ${config.env} mode`);
+httpsServer.listen(config.httpsPort, () => {
+  console.log(`[HTTPS] Server is listening on port ${config.httpsPort} in ${config.env} mode`);
 });
 
 // route handles

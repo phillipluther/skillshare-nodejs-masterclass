@@ -1,11 +1,13 @@
 const environments = {
   staging: {
     env: 'staging',
-    port: 3000,
+    httpPort: 3000,
+    httpsPort: 3001,
   },
   production: {
     env: 'production',
-    port: '8000',
+    httpPort: 8000,
+    httpsPort: 8001,
   },
 };
 
