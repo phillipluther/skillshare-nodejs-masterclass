@@ -3,6 +3,11 @@ const https = require('https');
 const fs = require('fs');
 const StringDecoder = require('string_decoder').StringDecoder;
 const config = require('./config');
+const dataLib = require('./lib/data');
+
+dataLib.delete('test', 'newFile', (err) => {
+  console.log('Errors?', err);
+})
 
 // unified server, handling both http and https requests
 const requestHandler = (req, res) => {
@@ -79,8 +84,8 @@ httpsServer.listen(config.httpsPort, () => {
 
 // route handles
 const handlers = {
-  sample: (data, callback) => {
-    callback(406, { name: 'sample handler' });
+  ping: (data, callback) => {
+    callback(200);
   },
   notFound: (data, callback) => {
     callback(404);
@@ -89,5 +94,5 @@ const handlers = {
 
 // eventually break this out. probably.
 const router = {
-  'sample': handlers.sample
+  ping: handlers.ping,
 }
