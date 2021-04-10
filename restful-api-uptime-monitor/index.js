@@ -2,15 +2,12 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const StringDecoder = require('string_decoder').StringDecoder;
-const config = require('./config');
-const dataLib = require('./lib/data');
-
-dataLib.delete('test', 'newFile', (err) => {
-  console.log('Errors?', err);
-})
+const requestHandlers = require('./lib/request-handlers');
+const config = require('./lib/config');
+const helpers = require('./lib/helpers');
 
 // unified server, handling both http and https requests
-const requestHandler = (req, res) => {
+const server = (req, res) => {
   const protocol = req.connection.encrypted ? 'https' : 'http';
   const baseUrl = `${protocol}://${req.headers.host}/`; // can always smarten this up later
   const parsedUrl = new URL(req.url, baseUrl);
@@ -31,14 +28,14 @@ const requestHandler = (req, res) => {
   req.on('end', () => {
     const handler = (typeof router[pathname] !== 'undefined')
       ? router[pathname]
-      : handlers.notFound;
+      : requestHandlers.notFound;
 
     const reqData = {
       pathname,
       method,
       queryParams,
       headers,
-      payload: buffer + decoder.end(),
+      payload: helpers.jsonToObject(buffer + decoder.end()),
     };
 
     handler(reqData, (statusCode = 200, payload = {}) => {
@@ -68,11 +65,11 @@ const requestHandler = (req, res) => {
   });
 };
 
-const httpServer = http.createServer(requestHandler);
+const httpServer = http.createServer(server);
 const httpsServer = https.createServer({
   key: fs.readFileSync('./https/key.pem'),
   cert: fs.readFileSync('./https/cert.pem'),
-}, requestHandler);
+}, server);
 
 httpServer.listen(config.httpPort, () => {
   console.log(`[HTTP] Server is listening on port ${config.httpPort} in ${config.env} mode`);
@@ -82,17 +79,8 @@ httpsServer.listen(config.httpsPort, () => {
   console.log(`[HTTPS] Server is listening on port ${config.httpsPort} in ${config.env} mode`);
 });
 
-// route handles
-const handlers = {
-  ping: (data, callback) => {
-    callback(200);
-  },
-  notFound: (data, callback) => {
-    callback(404);
-  },
-};
-
 // eventually break this out. probably.
 const router = {
-  ping: handlers.ping,
-}
+  ping: requestHandlers.ping,
+  users: requestHandlers.users,
+};

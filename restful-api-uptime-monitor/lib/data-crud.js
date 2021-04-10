@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const helpers = require('./helpers');
 
 /*
  * example data structure
@@ -38,12 +39,12 @@ const dataLib = {
     });
   },
 
-  get: (dir, file, callback) => {
+  read: (dir, file, callback) => {
     fs.readFile(path.join(dataLib.baseDir, dir, `${file}.json`), 'utf8', (err, data) => {
       if (!err && data) {
-        callback(false, data);
+        callback(false, helpers.jsonToObject(data));
       } else {
-        callback(`Failed to read ${dir}/${file}.json`);
+        callback(err, data);
       }
     });
   },
