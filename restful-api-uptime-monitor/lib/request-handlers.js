@@ -1,44 +1,66 @@
 const dataCrud = require('./data-crud');
 const helpers = require('./helpers');
 
+// fairly sloppy validation logic, but good enough for our tut purposes
+const fieldValidations = {
+  firstName: (val) => (typeof val === 'string') && (val.trim().length > 0),
+  lastName: (val) => (typeof val === 'string') && (val.trim().length > 0),
+  phone: (val) => (typeof val === 'string') && (val.trim().length === 10),
+  password: (val) => (typeof val === 'string') && (val.trim().length > 0),
+  tosAccepted: (val) => (typeof val === 'boolean') && (val === true),
+};
+
+// helper method for running basic validation
+const getFieldErrors = (fields, requiredFields = []) => {
+  // seed the field errors array with missing required fields; empty arr if none
+  const fieldErrors = requiredFields.reduce((errs, fieldName) => {
+    if (typeof fields[fieldName] === 'undefined') {
+      errs.push(`Field ${fieldName} is required`);
+    }
+    return errs;
+  }, []);
+
+  Object.keys(fields).forEach((fieldName) => {
+    const validator = fieldValidations[fieldName];
+    const fieldValue = fields[fieldName];
+
+    if (validator && fieldValue) {
+      const valid = validator(fieldValue);
+      
+      if (!valid) {
+        fieldErrors.push(`Field '${fieldName} is invalid`);
+      }
+    }
+  });
+
+  return fieldErrors;
+};
+
+// helper wrapper for making token-validated requests
+function withToken(tokenizedFunc) {
+  return function(data, callback) {
+    const { token } = data.headers;
+    const phone = data.queryParams.get('phone') || data.payload.phone;
+
+    if ((typeof token === 'string') || (typeof phone === 'string')) {
+      tokenHandlers.verifyToken(token, phone, (isValidToken) => {
+        if (isValidToken) {
+          tokenizedFunc(data, callback);
+        } else {
+          callback(403, { error: 'Token is invalid' });
+        }
+      });
+    } else {
+      callback(403, { error: 'Token is required' });
+    }  
+  }
+}
+
 // private handlers
 const userHandlers = {
-  // fairly sloppy validation logic, but good enough for our tut purposes
-  fieldValidations: {
-    firstName: (val) => (typeof val === 'string') && (val.trim().length > 0),
-    lastName: (val) => (typeof val === 'string') && (val.trim().length > 0),
-    phone: (val) => (typeof val === 'string') && (val.trim().length === 10),
-    password: (val) => (typeof val === 'string') && (val.trim().length > 0),
-    tosAccepted: (val) => (typeof val === 'boolean') && (val === true),
-  },
-  getFieldErrors: (fields, requiredFields = []) => {
-    // seed the field errors array with missing required fields; empty arr if none
-    const fieldErrors = requiredFields.reduce((errs, fieldName) => {
-      if (typeof fields[fieldName] === 'undefined') {
-        errs.push(`Field ${fieldName} is required`);
-      }
-      return errs;
-    }, []);
-
-    Object.keys(fields).forEach((fieldName) => {
-      const validator = userHandlers.fieldValidations[fieldName];
-      const fieldValue = fields[fieldName];
-
-      if (validator && fieldValue) {
-        const valid = validator(fieldValue);
-        
-        if (!valid) {
-          fieldErrors.push(`Field '${fieldName} is invalid`);
-        }
-      }
-    });
-
-    return fieldErrors;
-  },
-
   POST: (data, callback) => {
-    const requiredFields = Object.keys(userHandlers.fieldValidations);
-    const fieldErrors = userHandlers.getFieldErrors(data.payload, requiredFields);
+    const requiredFields = Object.keys(fieldValidations); // all fields required on POST
+    const fieldErrors = getFieldErrors(data.payload, requiredFields);
 
     if (fieldErrors.length === 0) {
       const { firstName, lastName, password, phone, tosAccepted } = data.payload;
@@ -83,8 +105,7 @@ const userHandlers = {
       );
     }
   },
-  // TODO: lock this down to auth'd users getting their own data
-  GET: (data, callback) => {
+  GET: withToken((data, callback) => {
     const { queryParams } = data;
     const phone = queryParams.get('phone');
 
@@ -100,9 +121,8 @@ const userHandlers = {
     } else {
       callback(400, { error: 'Field `phone` is required' });
     }
-  },
-  // TODO: lock this down, too, so only auth'd users can update their info 
-  PUT: (data, callback) => {
+  }),
+  PUT: withToken((data, callback) => {
     // bit of a design flaw in the tut, but you can't actually update your phone number ...
     const { phone, ...fieldsToUpdate } = data.payload;
     const fieldNamesToUpdate = Object.keys(fieldsToUpdate);
@@ -115,7 +135,7 @@ const userHandlers = {
       if (fieldNamesToUpdate.length > 0) {
         dataCrud.read('users', phone, (err, userData) => {
           if (!err && userData) {
-            const fieldErrors = userHandlers.getFieldErrors(fieldsToUpdate);
+            const fieldErrors = getFieldErrors(fieldsToUpdate);
 
             if (fieldErrors.length === 0) {
               const updates = { ...userData, ...fieldsToUpdate };
@@ -140,9 +160,8 @@ const userHandlers = {
     } else {
       callback(400, { error: 'Field `phone` does not appear valid '})
     }
-  },
-  // TODO: Again and again ... only Auth'd users can delete their own data
-  DELETE: (data, callback) => {
+  }),
+  DELETE: withToken((data, callback) => {
     const { queryParams } = data;
     const phone = queryParams.get('phone');
 
@@ -163,16 +182,141 @@ const userHandlers = {
     } else {
       callback(400, { error: 'Field `phone` is required' });
     }
+  }),
+};
+
+const tokenHandlers = {
+  GET: (data, callback) => {
+    const { queryParams } = data;
+    const tokenId = queryParams.get('token');
+
+    if (tokenId) {
+      dataCrud.read('tokens', tokenId, (err, tokenData) => {
+        if (!err && tokenData) {
+          callback(200, tokenData);
+        } else {
+          callback(404);
+        }
+      });
+    } else {
+      callback(400, { error: 'Field `token` is required' });
+    }
+  },
+  POST: (data, callback) => {
+    const fieldErrors = getFieldErrors(data.payload, ['phone', 'password']);
+    const { phone, password } = data.payload;
+
+    if (fieldErrors.length === 0) {
+      dataCrud.read('users', phone, (err, userData) => {
+        if (!err && userData) {
+          if (helpers.hash(password) === userData.password) {
+            const tokenId = helpers.createRandomString(24);
+            const expires = Date.now() + 1000 * 60 * 60; // token is good for an hour
+            const tokenData = {
+              id: tokenId,
+              expires,
+              phone,
+            };
+
+            dataCrud.create('tokens', tokenId, tokenData, (err) => {
+              if (!err) {
+                callback(200, tokenData);
+              } else {
+                callback(500, { error: 'Failed to create token' });
+              }
+            });
+          } else {
+            callback(400, { error: 'Invalid phone and password combination' });
+          }
+        } else {
+          callback(400, { error: `Could not find user ${phone}` });
+        }
+      });
+    } else {
+      callback(400, fieldErrors[0]);
+    }
+  },
+  PUT: (data, callback) => {
+    const { id: tokenId, extend } = data.payload;
+
+    if (tokenId && (extend === true)) {
+      dataCrud.read('tokens', tokenId, (err, tokenData) => {
+        if (!err && tokenData) {
+          if (tokenData.expires > Date.now()) {
+            tokenData.expires = Date.now() * 1000 * 60 * 60;
+
+            dataCrud.update('tokens', tokenId, tokenData, (err) => {
+              if (!err) {
+                callback(200);
+              } else {
+                callback(500, { error: `Failed to extend token ${tokenId}` });
+              }
+            });
+          } else {
+            callback(400, { error: `Token ${tokenId} is expired` });
+          }
+        } else {
+          callback(400, { error: `Token ${tokenId} was not found` })
+        }
+      });
+    } else {
+      callback(400, { error: 'Invalid request to extend token' });
+    }
+  },
+  DELETE: (data, callback) => {
+    const { queryParams } = data;
+    const tokenId = queryParams.get('token');
+
+    if (typeof tokenId === 'string') {
+      dataCrud.read('tokens', tokenId, (err, tokenData) => {
+        if (!err && tokenData) {
+          dataCrud.delete('tokens', tokenId, (err) => {
+            if (!err) {
+              callback(200);
+            } else {
+              callback(500, { error: `Failed to delete token ${tokenId}` });
+            }
+          });
+        } else {
+          callback(400, { error: `Token ${tokenId} was not found` });
+        }
+      });
+    } else {
+      callback(400, { error: 'Field `token` is required' });
+    }
+  },
+  // non-CRUD helper for verifying token status
+  verifyToken: (tokenId, phone, callback) => {
+    dataCrud.read('tokens', tokenId, (err, tokenData) => {
+      if (!err && tokenData) {
+        if ((tokenData.phone === phone) && (tokenData.expires > Date.now())) {
+          callback(true);
+        } else {
+          callback(false);
+        }
+      } else {
+        callback(false);
+      }
+    });
   },
 };
 
 // route handlers
 const handlers = {
+  notFound: (data, callback) => {
+    callback(404);
+  },
   ping: (data, callback) => {
     callback(200);
   },
-  notFound: (data, callback) => {
-    callback(404);
+  tokens: (data, callback) => {
+    const acceptedMethods = ['POST', 'PUT', 'GET', 'DELETE'];
+
+    if (acceptedMethods.includes(data.method)) {
+      tokenHandlers[data.method](data, callback);
+    } else {
+      callback(405);
+    }
   },
   users: (data, callback) => {
     const acceptedMethods = ['POST', 'PUT', 'GET', 'DELETE'];

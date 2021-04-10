@@ -83,4 +83,5 @@ httpsServer.listen(config.httpsPort, () => {
 const router = {
   ping: requestHandlers.ping,
   users: requestHandlers.users,
+  tokens: requestHandlers.tokens,
 };
