@@ -17,6 +17,38 @@ const helpers = {
 
     return randomString;
   },
+  fieldValidations: {
+    firstName: (val) => (typeof val === 'string') && (val.trim().length > 0),
+    lastName: (val) => (typeof val === 'string') && (val.trim().length > 0),
+    phone: (val) => (typeof val === 'string') && (val.trim().length === 10),
+    password: (val) => (typeof val === 'string') && (val.trim().length > 0),
+    tosAccepted: (val) => (typeof val === 'boolean') && (val === true),
+  },
+  // runs basic validation on requests
+  getFieldErrors: (fields, requiredFields = []) => {
+    // seed the field errors array with missing required fields; empty arr if none
+    const fieldErrors = requiredFields.reduce((errs, fieldName) => {
+      if (typeof fields[fieldName] === 'undefined') {
+        errs.push(`Field ${fieldName} is required`);
+      }
+      return errs;
+    }, []);
+
+    Object.keys(fields).forEach((fieldName) => {
+      const validator = helpers.fieldValidations[fieldName];
+      const fieldValue = fields[fieldName];
+
+      if (validator && fieldValue) {
+        const valid = validator(fieldValue);
+        
+        if (!valid) {
+          fieldErrors.push(`Field '${fieldName} is invalid`);
+        }
+      }
+    });
+
+    return fieldErrors;
+  },
   hash: (str) => {
     if ((typeof str === 'string') && (str.length > 1)) {
       const hashedStr = crypto.createHmac('sha256', config.hashSecret).update(str).digest('hex');

@@ -81,7 +81,8 @@ httpsServer.listen(config.httpsPort, () => {
 
 // eventually break this out. probably.
 const router = {
+  checks: requestHandlers.checks,
   ping: requestHandlers.ping,
-  users: requestHandlers.users,
   tokens: requestHandlers.tokens,
+  users: requestHandlers.users,
 };
