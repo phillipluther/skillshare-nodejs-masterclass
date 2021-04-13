@@ -23,6 +23,15 @@ const helpers = {
     phone: (val) => (typeof val === 'string') && (val.trim().length === 10),
     password: (val) => (typeof val === 'string') && (val.trim().length > 0),
     tosAccepted: (val) => (typeof val === 'boolean') && (val === true),
+    protocol: (val) => ['http', 'https'].includes(val),
+    url: (val) => (typeof val === 'string') && (val.trim().length > 0),
+    method: (val) => ['post', 'get', 'put', 'delete'].includes(val),
+    successCodes: (val) => Array.isArray(val),
+    timeoutSeconds: (val) => 
+      (typeof val === 'number') && 
+      (val % 1 === 0) && 
+      (val >= 1) &&
+      (val <= 5),
   },
   // runs basic validation on requests
   getFieldErrors: (fields, requiredFields = []) => {

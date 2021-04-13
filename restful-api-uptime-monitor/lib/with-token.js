@@ -7,7 +7,6 @@ function withToken(tokenizedFunc) {
     const phone = data.queryParams.get('phone') || data.payload.phone;
 
     if ((typeof token === 'string') || (typeof phone === 'string')) {
-      // tokenHandlers.verifyToken(token, phone, (isValidToken) => {
       dataCrud.read('tokens', token, (err, tokenData) => {
         if (!err && (tokenData?.phone === phone) && (tokenData?.expires > Date.now())) {
           tokenizedFunc.call($this, data, callback);
