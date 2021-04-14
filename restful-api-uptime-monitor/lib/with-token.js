@@ -1,4 +1,5 @@
-const dataCrud = require('./data-crud');
+// const dataCrud = require('./data-crud');
+const tokensHandler = require('./request-handlers/tokens');
 
 function withToken(tokenizedFunc) {
   return function(data, callback) {
@@ -6,17 +7,13 @@ function withToken(tokenizedFunc) {
     const $this = this;
     const phone = data.queryParams.get('phone') || data.payload.phone;
 
-    if ((typeof token === 'string') || (typeof phone === 'string')) {
-      dataCrud.read('tokens', token, (err, tokenData) => {
-        if (!err && (tokenData?.phone === phone) && (tokenData?.expires > Date.now())) {
-          tokenizedFunc.call($this, data, callback);
-        } else {
-          callback(403, { error: 'Token is invalid' });
-        }
-      });
-    } else {
-      callback(403, { error: 'Token is required' });
-    }  
+    tokensHandler.verify(token, phone, (isValidToken) => {
+      if (isValidToken) {
+        tokenizedFunc.call($this, data, callback);
+      } else {
+        callback(403, { error: 'Token is missing or invalid' });
+      }
+    });
   }
 }
 

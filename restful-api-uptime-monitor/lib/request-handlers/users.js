@@ -121,7 +121,33 @@ const usersHandlers = {
         if (!err && userData) {
           dataCrud.delete('users', phone, (err) => {
             if (!err) {
-              callback(200);
+              const { checks: userChecks = []} = userData;
+              const checksToDelete = userChecks.length;
+
+              let hasDeletionErrors = false;
+              let checksDeleted = 0;
+
+              if (checksToDelete > 0) {
+                userChecks.forEach((checkId) => {
+                  dataCrud.delete('checks', checkId, (err) => {
+                    if (err) {
+                      hasDeletionErrors = true;
+                    }
+
+                    checksDeleted++;
+
+                    if (checksDeleted === checksToDelete) {
+                      if (!hasDeletionErrors) {
+                        callback(200);
+                      } else {
+                        callback(500, { error: 'Could not delete all user checks' });
+                      }
+                    }
+                  });
+                });
+              } else {
+                callback(200);
+              }
             } else {
               callback(500, { error: `Failed to delete user ${phone}` });
             }

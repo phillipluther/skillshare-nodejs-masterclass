@@ -23,6 +23,7 @@ const helpers = {
     phone: (val) => (typeof val === 'string') && (val.trim().length === 10),
     password: (val) => (typeof val === 'string') && (val.trim().length > 0),
     tosAccepted: (val) => (typeof val === 'boolean') && (val === true),
+    token: (val) => (typeof val === 'string') && (val.trim().length > 0),
     protocol: (val) => ['http', 'https'].includes(val),
     url: (val) => (typeof val === 'string') && (val.trim().length > 0),
     method: (val) => ['post', 'get', 'put', 'delete'].includes(val),

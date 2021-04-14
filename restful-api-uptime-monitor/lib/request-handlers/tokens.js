@@ -101,6 +101,21 @@ const tokenHandlers = {
       callback(400, { error: 'Field `token` is required' });
     }
   },
+  verify: (tokenId, phone, callback) => {
+    const { fieldValidations } = helpers;
+
+    if (fieldValidations.token(tokenId) && fieldValidations.phone(phone)) {
+      dataCrud.read('tokens', tokenId, (err, tokenObj) => {
+        if (!err && tokenObj) {
+          callback((tokenObj?.phone === phone) && (tokenObj.expires > Date.now()));
+        } else {
+          callback(false);
+        }
+      });
+    } else {
+      callback(false);
+    }
+  },
 };
 
 module.exports = tokenHandlers;
