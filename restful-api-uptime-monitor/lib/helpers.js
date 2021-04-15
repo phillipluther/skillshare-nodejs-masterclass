@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const config = require('./config');
+const querystring = require('querystring');
+const https = require('https');
 
 const helpers = {
   createRandomString: (strLen) => {
@@ -33,6 +35,12 @@ const helpers = {
       (val % 1 === 0) && 
       (val >= 1) &&
       (val <= 5),
+    message: (val) => {
+      const messageLength = val.trim().length;
+      const isString = typeof val === 'string';
+
+      return isString && messageLength > 0 && messageLength < 1600;
+    },
   },
   // runs basic validation on requests
   getFieldErrors: (fields, requiredFields = []) => {
@@ -73,6 +81,47 @@ const helpers = {
       return JSON.parse(str);
     } catch (err) {
       return {};
+    }
+  },
+  sendTwilioSMS: (phone, message, callback) => {
+    const fieldErrors = helpers.getFieldErrors({ phone, message }, ['phone', 'message']);
+
+    if (fieldErrors.length === 0) {
+      const messageString = querystring.stringify(message);
+      const twilioPayload = {
+        from: config.twilio.fromPhone,
+        to: `+1${phone}`,
+        body: message,
+      };
+
+      const requestDetails = {
+        protocol: 'https:',
+        hostname: 'api.twilio.com',
+        method: 'POST',
+        path: `2010-04-01/Accounts/${config.twilio.accountSid}/Messages`,
+        auth: `${config.twilio.accountSid}:${config.twilio.authToken}`,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(messageString),
+        },
+      };
+
+      const req = https.request(requestDetails, (res) => {
+        const { status } = res;
+
+        if ((status === 200) || (status === 201)) {
+          callack(false);
+        } else {
+          callback(`Twilio status code returned ${status}`);
+        }
+      });
+
+      req.on('error', (err) => callback(err));
+      req.write(messageString);
+      req.end();
+
+    } else {
+      callback(fieldErrors[0]);
     }
   },
 };
