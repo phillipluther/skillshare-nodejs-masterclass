@@ -90,6 +90,16 @@ const dataLib = {
       }
     })
   },
+
+  list: (dir, callback) => {
+    fs.readdir(path.join(dataLib.baseDir, dir), (err, data) => {
+      if (!err && data) {
+        callback(false, data.map((fileName) => fileName.replace(/\.json$/, '')));
+      } else {
+        callback(err, data);
+      }
+    });
+  },
 };
 
 module.exports = dataLib;

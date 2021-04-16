@@ -41,6 +41,8 @@ const helpers = {
 
       return isString && messageLength > 0 && messageLength < 1600;
     },
+    state: (val) => ['up', 'down'].includes(val),
+    lastChecked: (val) => (typeof val === 'number'),
   },
   // runs basic validation on requests
   getFieldErrors: (fields, requiredFields = []) => {
@@ -60,7 +62,7 @@ const helpers = {
         const valid = validator(fieldValue);
         
         if (!valid) {
-          fieldErrors.push(`Field '${fieldName} is invalid`);
+          fieldErrors.push(`Field '${fieldName}' is invalid`);
         }
       }
     });
@@ -87,12 +89,12 @@ const helpers = {
     const fieldErrors = helpers.getFieldErrors({ phone, message }, ['phone', 'message']);
 
     if (fieldErrors.length === 0) {
-      const messageString = querystring.stringify(message);
       const twilioPayload = {
         from: config.twilio.fromPhone,
         to: `+1${phone}`,
         body: message,
       };
+      const stringPayload = querystring.stringify(twilioPayload);
 
       const requestDetails = {
         protocol: 'https:',
@@ -102,22 +104,22 @@ const helpers = {
         auth: `${config.twilio.accountSid}:${config.twilio.authToken}`,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(messageString),
+          'Content-Length': Buffer.byteLength(stringPayload),
         },
       };
 
       const req = https.request(requestDetails, (res) => {
-        const { status } = res;
+        const { statusCode } = res;
 
-        if ((status === 200) || (status === 201)) {
+        if ((statusCode === 200) || (statusCode === 201)) {
           callack(false);
         } else {
-          callback(`Twilio status code returned ${status}`);
+          callback(`Twilio status code returned ${statusCode}`);
         }
       });
 
       req.on('error', (err) => callback(err));
-      req.write(messageString);
+      req.write(stringPayload);
       req.end();
 
     } else {
