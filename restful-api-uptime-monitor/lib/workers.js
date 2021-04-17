@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
-const url = require('url');
+const logger = require('./logger');
 const dataCrud = require('./data-crud');
 const helpers = require('./helpers');
 
@@ -39,12 +39,14 @@ const workers = {
       lastChecked: Date.now(),
     };
 
+    workers.log(newCheckData, checkOutcome, needsAlert);
+
     dataCrud.update('checks', newCheckData.id, newCheckData, (err) => {
       if (!err) {
         if (needsAlert) {
           workers.alertUser(newCheckData);
         } else {
-          console.log(`Check ${newCheckData.id} is all clear; no alert needed`);
+          console.log(`Check to ${newCheckData.url} is all clear; no alert needed`);
         }
       } else {
         console.error(`Failed to update check ${newCheckData.id}`);
@@ -146,14 +148,65 @@ const workers = {
       }
     });
   },
+  log: (checkData, checkOutcome, alerted) => {
+    const logData = {
+      checkData,
+      checkOutcome,
+      alerted,
+    };
+
+    const stringifiedData = JSON.stringify(logData);
+    const logFileName = checkData.id;
+
+    logger.append(logFileName, stringifiedData, (err) => {
+      if (!err) {
+        console.log(`Log output found at ./data/logs/${logFileName}.txt`);
+      } else {
+        console.error('Logging failed:', err);
+      }
+    });
+  },
+  rotateLogs: () => {
+    logger.list(false, (err, logs) => {
+      if (!err && logs) {
+        logs.forEach((logName) => {
+          const logId = logName.replace(/\.log$/, '');
+          const compressedLogId = `${logId}-${Date.now()}`;
+
+          logger.compress(logId, compressedLogId, (err) => {
+            if (!err) {
+              logger.truncate(logId, (err) => {
+                if (!err) {
+                  console.log('Successfully truncated log file; empty and ready!');
+                } else {
+                  console.log('Could not truncate log file');
+                }
+              });
+            } else {
+              console.error('Could not compress log', err);
+            }
+          });
+        });
+      } else {
+        console.error('Could not find any logs to rotate');
+      }
+    });
+  },
   loop: () => {
     setInterval(() => {
       workers.gatherAllChecks();
     }, 1000 * 5);
   },
+  logRotationLoop: () => {
+    setInterval(() => {
+      workers.rotateLogs();
+    }, 1000 * 60 * 60 * 24);
+  },
   init: () => {
     workers.gatherAllChecks();
     workers.loop();
+    workers.rotateLogs();
+    workers.logRotationLoop();
   },
 };
 
