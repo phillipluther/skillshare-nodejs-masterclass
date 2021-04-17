@@ -6,6 +6,7 @@ const StringDecoder = require('string_decoder').StringDecoder;
 const requestHandlers = require('./request-handlers');
 const config = require('./config');
 const helpers = require('./helpers');
+const debug = require('util').debuglog('server');
 
 const server = {
   // unified server, handling both http and https requests
@@ -48,31 +49,40 @@ const server = {
         res.end(payloadString);
   
         // debugging/details
-        const groupName = `[${method} /${pathname}]`;
+        const message = `[${statusCode}] ${method} /${pathname}`;
+        const accentColor = (statusCode === 200) ? '\x1b[32m%s\x1b[0m' : '\x1b[31m%s\x1b[0m';
+
+        debug(accentColor, message);
+
+        // console.group(message);
+        //   console.group('Request');
+        //     console.log('Params:', queryParams);
+        //     console.log('Headers:', headers);
+        //     console.log('Payload:', buffer);
+        //   console.groupEnd('Request');
   
-        console.group(groupName);
-          console.group('Request');
-            console.log('Params:', queryParams);
-            console.log('Headers:', headers);
-            console.log('Payload:', buffer);
-          console.groupEnd('Request');
-  
-          console.group('Response');
-            console.log('Status:', statusCode);
-            console.log('Payload:', payloadString || 'none');
-          console.groupEnd('Response');
-        console.groupEnd(groupName);
-        console.log('\n');
+        //   console.group('Response');
+        //     console.log('Status:', statusCode);
+        //     console.log('Payload:', payloadString || 'none');
+        //   console.groupEnd('Response');
+        // console.groupEnd(message);
+        // console.log('\n');
       });
     });
   },
   init: () => {
     server.httpServer.listen(config.httpPort, () => {
-      console.log(`[HTTP] Server is listening on port ${config.httpPort} in ${config.env} mode`);
+      console.log(
+        '\x1b[32m%s\x1b[0m',
+        `[HTTP] Server is listening on port ${config.httpPort} in ${config.env} mode`,
+      );
     });
     
     server.httpsServer.listen(config.httpsPort, () => {
-      console.log(`[HTTPS] Server is listening on port ${config.httpsPort} in ${config.env} mode`);
+      console.log(
+        '\x1b[32m%s\x1b[0m',
+        `[HTTPS] Server is listening on port ${config.httpsPort} in ${config.env} mode`,
+      );
     });    
   },
 }

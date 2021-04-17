@@ -5,6 +5,9 @@ const https = require('https');
 const logger = require('./logger');
 const dataCrud = require('./data-crud');
 const helpers = require('./helpers');
+const util = require('util');
+
+const debug = util.debuglog('workers');
 
 const workers = {
   alertUser: (checkData) => {
@@ -19,9 +22,9 @@ const workers = {
 
     helpers.sendTwilioSMS(phone, message, (err) => {
       if (!err) {
-        console.log('User successfully alerted by SMS:', message);
+        debug('User successfully alerted by SMS:', message);
       } else {
-        console.error(`Failed to notify ${phone} of status change`, err);
+        debug(`Failed to notify ${phone} of status change`, err);
 
       }
     })
@@ -46,10 +49,10 @@ const workers = {
         if (needsAlert) {
           workers.alertUser(newCheckData);
         } else {
-          console.log(`Check to ${newCheckData.url} is all clear; no alert needed`);
+          debug(`Check to ${newCheckData.url} is all clear; no alert needed`);
         }
       } else {
-        console.error(`Failed to update check ${newCheckData.id}`);
+        debug(`Failed to update check ${newCheckData.id}`);
       }
     });
   },
@@ -128,7 +131,7 @@ const workers = {
     if (fieldErrors.length === 0) {
       workers.performCheck(checkData);
     } else {
-      console.error(fieldErrors[0]);
+      debug(fieldErrors[0]);
     }
   },
   gatherAllChecks: () => {
@@ -139,12 +142,12 @@ const workers = {
             if (!err && originalCheckData) {
               workers.validateCheckData(originalCheckData);
             } else {
-              console.error('Error reading check');d
+              debug('Error reading check');d
             }
           });
         });
       } else {
-        console.error('No checks to process');
+        debug('No checks to process');
       }
     });
   },
@@ -160,9 +163,9 @@ const workers = {
 
     logger.append(logFileName, stringifiedData, (err) => {
       if (!err) {
-        console.log(`Log output found at ./data/logs/${logFileName}.txt`);
+        debug(`Log output found at ./data/logs/${logFileName}.txt`);
       } else {
-        console.error('Logging failed:', err);
+        debug('Logging failed:', err);
       }
     });
   },
@@ -177,18 +180,18 @@ const workers = {
             if (!err) {
               logger.truncate(logId, (err) => {
                 if (!err) {
-                  console.log('Successfully truncated log file; empty and ready!');
+                  debug('Successfully truncated log file; empty and ready!');
                 } else {
-                  console.log('Could not truncate log file');
+                  debug('Could not truncate log file');
                 }
               });
             } else {
-              console.error('Could not compress log', err);
+              debug('Could not compress log', err);
             }
           });
         });
       } else {
-        console.error('Could not find any logs to rotate');
+        debug('Could not find any logs to rotate');
       }
     });
   },
@@ -203,6 +206,8 @@ const workers = {
     }, 1000 * 60 * 60 * 24);
   },
   init: () => {
+    console.log('\x1b[33m%s\x1b[0m', 'Background workers running');
+
     workers.gatherAllChecks();
     workers.loop();
     workers.rotateLogs();
